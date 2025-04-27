@@ -39,6 +39,9 @@ Since the library is still under development and not yet published, you can clon
 ```sh
 git clone git@github.com:KengoWada/taskqueue.git
 cd taskqueue/example
+
+# Assumes you have redis running with this address: localhost:6379
+# Change the address value if neccessary
 go run main.go
 ```
 
