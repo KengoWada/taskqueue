@@ -3,6 +3,7 @@ package redisbroker
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/KengoWada/taskqueue"
@@ -29,15 +30,19 @@ type RedisBroker struct {
 // Example usage:
 //
 //	broker := NewRedisBroker("localhost:6379", "taskqueue")
-func NewRedisBroker(addr, queue string) *RedisBroker {
+func NewRedisBroker(addr, queue string) (*RedisBroker, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr: addr,
 	})
 
+	if err := client.Ping(context.Background()).Err(); err != nil {
+		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
+	}
+
 	return &RedisBroker{
 		client: client,
 		queue:  queue,
-	}
+	}, nil
 }
 
 // Publish pushes the given task onto the Redis queue.

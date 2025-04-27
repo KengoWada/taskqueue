@@ -26,7 +26,12 @@ func sendEmailTask(args taskqueue.TaskArgs) error {
 }
 
 func main() {
-	broker := redisbroker.NewRedisBroker("localhost:6379", "app_tasks")
+	broker, err := redisbroker.NewRedisBroker("localhost:6379", "app_tasks")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
 	backoffPolicy := &taskqueue.BackoffPolicy{
 		BaseDelay:     2 * time.Second,
 		MaxDelay:      60 * time.Second,
