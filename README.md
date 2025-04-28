@@ -1,5 +1,7 @@
 # TaskQueue: Go-based Distributed Task Queue
 
+[![Test and Coverage](https://github.com/KengoWada/taskqueue/actions/workflows/test.yml/badge.svg?branch=develop)](https://github.com/KengoWada/taskqueue/actions/workflows/test.yml) [![codecov](https://codecov.io/gh/KengoWada/taskqueue/graph/badge.svg?token=Y0VW883H2V)](https://codecov.io/gh/KengoWada/taskqueue) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+
 TaskQueue is a Go library that provides a simple and efficient way to manage and execute asynchronous tasks. It's inspired by [Celery](https://docs.celeryq.dev/en/stable/getting-started/introduction.html) and designed to be highly extensible, allowing you to easily distribute tasks across multiple workers.
 
 ## ⚠️ Warning: Not Production Ready
