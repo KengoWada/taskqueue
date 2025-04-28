@@ -44,7 +44,7 @@ func (w *Worker) Start(ctx context.Context) {
 
 	tasks, err := w.broker.Consume()
 	if err != nil {
-		log.Fatalf("Failed to consume tasks: %v", err)
+		log.Printf("Failed to consume tasks: %v\n", err)
 		return
 	}
 
