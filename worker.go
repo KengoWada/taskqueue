@@ -7,39 +7,150 @@ import (
 	"time"
 )
 
-// Worker represents a single worker that processes tasks from a broker.
-// It is responsible for consuming tasks, executing handlers, and managing retries.
-type Worker struct {
-	id       int                        // The unique identifier for the worker.
-	broker   Broker                     // The broker from which tasks are consumed.
-	backoff  *BackoffPolicy             // The backoff policy for retrying tasks in case of failure.
-	handlers map[string]TaskHandlerFunc // A map of task names to their corresponding handler functions.
-	wg       *sync.WaitGroup            // A WaitGroup to synchronize worker shutdown and wait for all tasks to finish.
+// Worker defines the contract for a task-processing worker.
+//
+// Implementations of Worker are responsible for registering task handlers
+// and starting the task execution loop, typically consuming tasks from a Broker.
+//
+// Methods:
+//   - Register: Associates a task name with a handler function.
+//   - Start: Begins processing tasks using the provided context for cancellation.
+//
+// This interface allows different worker implementations to be plugged into the Manager,
+// enabling customizable behavior such as logging, metrics, or concurrency models.
+//
+// Example usage:
+//
+//	type MyWorker struct { ... }
+//	func (w *MyWorker) Register(name string, handler TaskHandlerFunc) { ... }
+//	func (w *MyWorker) Start(ctx context.Context) { ... }
+type Worker interface {
+	Register(name string, handler TaskHandlerFunc)
+	Start(ctx context.Context)
 }
 
-// NewWorker creates a new worker instance with the given ID, broker, backoff policy, and WaitGroup.
-// The worker is responsible for consuming tasks from the broker, executing the appropriate handlers,
-// and handling retries in case of failures.
-func NewWorker(id int, broker Broker, backoff *BackoffPolicy, wg *sync.WaitGroup) *Worker {
-	return &Worker{
-		id:       id,
-		broker:   broker,
-		backoff:  backoff,
+// WorkerFactory defines a function that creates a new Worker instance using the provided configuration.
+//
+// This allows users to customize how Workers are constructed, enabling injection of custom
+// dependencies (e.g., loggers, metrics, settings) without modifying the Manager.
+//
+// The WorkerConfig contains common fields such as worker ID, broker, backoff policy, and a wait group.
+//
+// Example:
+//
+//	func MyWorkerFactory(cfg WorkerConfig) Worker {
+//	    return &MyCustomWorker{
+//	        id:      cfg.ID,
+//	        broker:  cfg.Broker,
+//	        backoff: cfg.Backoff,
+//	        wg:      cfg.WG,
+//	        logger:  myLogger, // custom dependency
+//	    }
+//	}
+type WorkerFactory func(cfg WorkerConfig) Worker
+
+// WorkerConfig provides the configuration necessary to initialize a Worker.
+//
+// It is passed to the WorkerFactory function by the Manager to ensure that all workers
+// have the required shared dependencies and context-specific data.
+//
+// Fields:
+//   - ID: A unique identifier for the worker, typically assigned by the Manager.
+//   - Broker: The Broker instance used to retrieve and dispatch tasks.
+//   - Backoff: The policy used for retrying tasks on failure.
+//   - WG: A shared WaitGroup used by the Manager to coordinate worker shutdown.
+//
+// This struct is designed to be extended if additional shared dependencies need to
+// be passed to workers in the future.
+type WorkerConfig struct {
+	ID      int
+	Broker  Broker
+	Backoff *BackoffPolicy
+	WG      *sync.WaitGroup
+}
+
+// DefaultWorker is the standard implementation of the Worker interface.
+//
+// It is responsible for consuming tasks from the provided Broker, executing them using
+// registered handler functions, and retrying failed tasks based on a backoff policy.
+//
+// Fields:
+//   - id: A unique identifier for this worker instance.
+//   - broker: The Broker used to fetch tasks for execution.
+//   - backoff: The BackoffPolicy used to delay retries on task failure.
+//   - handlers: A map of task names to their associated TaskHandlerFunc implementations.
+//   - wg: A shared WaitGroup used by the Manager to coordinate worker shutdown.
+//
+// DefaultWorker is intended to be created using a WorkerFactory and managed by a Manager.
+// It supports context-based cancellation for graceful shutdown.
+type DefaultWorker struct {
+	id       int
+	broker   Broker
+	backoff  *BackoffPolicy
+	handlers map[string]TaskHandlerFunc
+	wg       *sync.WaitGroup
+}
+
+// DefaultWorkerFactory creates and returns a new instance of DefaultWorker using the provided WorkerConfig.
+//
+// The worker is initialized with:
+//   - A unique ID
+//   - A broker for task consumption
+//   - A backoff policy for retrying failed tasks
+//   - A shared WaitGroup for graceful shutdown coordination
+//   - An empty handler map ready for task registration
+//
+// This function returns a Worker interface, allowing the DefaultWorker to be used polymorphically.
+//
+// Typically used within a WorkerFactory passed to the Manager.
+func DefaultWorkerFactory(cfg WorkerConfig) Worker {
+	return &DefaultWorker{
+		id:       cfg.ID,
+		broker:   cfg.Broker,
+		backoff:  cfg.Backoff,
 		handlers: make(map[string]TaskHandlerFunc),
-		wg:       wg,
+		wg:       cfg.WG,
 	}
 }
 
-// Register registers a task handler function for a specific task name.
-// The handler will be invoked when a task with the specified name is consumed from the broker.
-func (w *Worker) Register(name string, handler TaskHandlerFunc) {
+// Register registers a task handler for a specific task name.
+//
+// The handler function will be associated with the provided task name and
+// invoked when a task with that name is received by the worker.
+//
+// Parameters:
+//   - name: The unique name of the task being registered.
+//   - handler: The TaskHandlerFunc that will handle the task when it is dispatched.
+//
+// This method allows users to dynamically register multiple tasks for a worker,
+// enabling the worker to handle a variety of task types.
+//
+// Example:
+//
+//	worker.Register("send_email", sendEmailHandler)
+func (w *DefaultWorker) Register(name string, handler TaskHandlerFunc) {
 	w.handlers[name] = handler
 }
 
-// Start begins the worker's task-consuming loop. It continuously consumes tasks from the broker and
-// invokes the registered task handlers. If a task handler returns an error, the task may be retried
-// based on the backoff policy and retry logic. The method ensures graceful shutdown using a context and WaitGroup.
-func (w *Worker) Start(ctx context.Context) {
+// Start begins processing tasks for the worker and continuously listens for new tasks
+// from the broker until the provided context is cancelled or the task channel is closed.
+//
+// It runs a task consumption loop that will:
+//   - Consume tasks from the broker
+//   - Attempt to handle each task using the corresponding registered handler
+//   - Retry failed tasks according to the worker's backoff policy (if provided)
+//   - Exit when the context is cancelled or the task channel is closed
+//
+// Parameters:
+//   - ctx: The context used to control the lifetime of the worker. When the context
+//     is cancelled, the worker will shut down gracefully.
+//
+// The worker will log information about task successes, failures, retries, and backoff delays.
+//
+// Example:
+//
+//	worker.Start(ctx)
+func (w *DefaultWorker) Start(ctx context.Context) {
 	defer w.wg.Done()
 
 	tasks, err := w.broker.Consume()
