@@ -62,10 +62,8 @@ func TestWorkerProcesses(t *testing.T) {
 
 	t.Run("should handle failing task with backoff", func(t *testing.T) {
 		backoff := &taskqueue.BackoffPolicy{
-			BaseDelay:     5 * time.Millisecond, // small delay for fast test
-			MaxDelay:      20 * time.Millisecond,
-			UseJitter:     false,
-			JitterRangeMs: 0,
+			BaseDelay: 5 * time.Millisecond, // small delay for fast test
+			MaxDelay:  20 * time.Millisecond,
 		}
 
 		mockBroker := NewMockBroker(5)
