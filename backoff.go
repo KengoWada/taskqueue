@@ -5,6 +5,22 @@ import (
 	"time"
 )
 
+var DefaultBackoffPolicy = BackoffPolicy{
+	BaseDelay:     1 * time.Second,
+	MaxDelay:      30 * time.Second,
+	UseJitter:     true,
+	JitterRangeMs: 300,
+}
+
+// Backoff defines the interface for calculating backoff delays between retries.
+// Implementations of this interface can provide custom logic for determining
+// how long to wait before retrying a failed task based on the number of retries.
+type Backoff interface {
+	// Calculate returns the duration to wait before the next retry attempt.
+	// The input parameter retries indicates how many times the task has already been retried.
+	Calculate(retries int) time.Duration
+}
+
 // BackoffPolicy defines the configuration for handling retries with backoff logic.
 // It provides settings for base delay, maximum delay, jitter, and the range for jitter.
 type BackoffPolicy struct {
