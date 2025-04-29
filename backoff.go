@@ -6,10 +6,8 @@ import (
 )
 
 var DefaultBackoffPolicy = BackoffPolicy{
-	BaseDelay:     1 * time.Second,
-	MaxDelay:      30 * time.Second,
-	UseJitter:     true,
-	JitterRangeMs: 300,
+	BaseDelay: 1 * time.Second,
+	MaxDelay:  30 * time.Second,
 }
 
 // Backoff defines the interface for calculating backoff delays between retries.
@@ -21,25 +19,29 @@ type Backoff interface {
 	Calculate(retries uint) time.Duration
 }
 
-// BackoffPolicy defines the configuration for handling retries with backoff logic.
-// It provides settings for base delay, maximum delay, jitter, and the range for jitter.
+// BackoffPolicy specifies the parameters for calculating exponential backoff with jitter.
+// It defines the base delay and the maximum delay allowed between retries.
+//
+// Fields:
+//   - BaseDelay: Specifies the initial delay duration.
+//   - MaxDelay: Sets the upper bound for the backoff delay, preventing unbounded wait times.
 type BackoffPolicy struct {
-	BaseDelay     time.Duration // Base delay before the first retry (e.g., 1 second)
-	MaxDelay      time.Duration // Maximum delay before retrying again (e.g., 60 seconds)
-	UseJitter     bool          // Whether to add random jitter to the delay
-	JitterRangeMs int           // Maximum jitter in milliseconds (e.g., 500ms)
+	BaseDelay time.Duration
+	MaxDelay  time.Duration
 }
 
-// Calculate calculates the delay before the next retry based on the backoff policy.
-// It considers the retry count, base delay, maximum delay, and jitter.
+// Calculate returns a jittered backoff duration based on the number of retries.
+// It uses exponential backoff with full jitter, where the delay is randomly chosen
+// between 0 and the calculated maximum delay.
+// The maximum delay grows exponentially with each retry, capped by MaxDelay.
+//
+// Example:
+//
+//	BaseDelay = 100ms, MaxDelay = 3s, retries = 3
+//	Max calculated delay = min(100ms * 2^3, 3s) = 800ms
+//	Returned delay = random duration in [0, 800ms)
 func (b *BackoffPolicy) Calculate(retries uint) time.Duration {
-	// Calculate the exponential backoff delay, doubling with each retry.
-	delay := min(b.BaseDelay*time.Duration(1<<uint(retries-1)), b.MaxDelay)
-
-	if b.UseJitter && b.JitterRangeMs > 0 {
-		jitter := time.Duration(rand.Intn(b.JitterRangeMs)) * time.Millisecond
-		delay += jitter
-	}
-
-	return delay
+	maxDelay := min(b.BaseDelay*(1<<retries), b.MaxDelay)
+	jitter := rand.Int63n(int64(maxDelay))
+	return time.Duration(jitter)
 }
