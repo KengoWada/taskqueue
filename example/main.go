@@ -39,7 +39,7 @@ func main() {
 		JitterRangeMs: 500,
 	}
 
-	manager := taskqueue.NewManager(broker, 5, taskqueue.WithBackoffPolicy(backoffPolicy))
+	manager := taskqueue.NewManager(broker, taskqueue.DefaultWorkerFactory, 5, taskqueue.WithBackoffPolicy(backoffPolicy))
 	manager.RegisterTask(sendEmailTaskName, sendEmailTask)
 	manager.Start()
 

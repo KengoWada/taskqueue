@@ -35,7 +35,8 @@ func TestWorkerProcesses(t *testing.T) {
 	t.Run("should run task successfully", func(t *testing.T) {
 		mockBroker := NewMockBroker(1)
 		wg := &sync.WaitGroup{}
-		worker := taskqueue.NewWorker(1, mockBroker, nil, wg)
+		cfg := taskqueue.WorkerConfig{ID: 1, Broker: mockBroker, Backoff: nil, WG: wg}
+		worker := taskqueue.DefaultWorkerFactory(cfg)
 		worker.Register(taskName, taskHandler)
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -69,7 +70,8 @@ func TestWorkerProcesses(t *testing.T) {
 
 		mockBroker := NewMockBroker(5)
 		wg := &sync.WaitGroup{}
-		worker := taskqueue.NewWorker(1, mockBroker, backoff, wg)
+		cfg := taskqueue.WorkerConfig{ID: 1, Broker: mockBroker, Backoff: backoff, WG: wg}
+		worker := taskqueue.DefaultWorkerFactory(cfg)
 		worker.Register(failTaskName, failTaskHandler)
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -97,7 +99,8 @@ func TestWorkerProcesses(t *testing.T) {
 	t.Run("should handle failing task with no backoff", func(t *testing.T) {
 		mockBroker := NewMockBroker(5)
 		wg := &sync.WaitGroup{}
-		worker := taskqueue.NewWorker(1, mockBroker, nil, wg)
+		cfg := taskqueue.WorkerConfig{ID: 1, Broker: mockBroker, Backoff: nil, WG: wg}
+		worker := taskqueue.DefaultWorkerFactory(cfg)
 		worker.Register(failTaskName, failTaskHandler)
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -125,7 +128,8 @@ func TestWorkerProcesses(t *testing.T) {
 	t.Run("should not execute task with no handler", func(t *testing.T) {
 		mockBroker := NewMockBroker(1)
 		wg := &sync.WaitGroup{}
-		worker := taskqueue.NewWorker(1, mockBroker, nil, wg)
+		cfg := taskqueue.WorkerConfig{ID: 1, Broker: mockBroker, Backoff: nil, WG: wg}
+		worker := taskqueue.DefaultWorkerFactory(cfg)
 		worker.Register(taskName, taskHandler)
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -153,7 +157,8 @@ func TestWorkerProcesses(t *testing.T) {
 		mockBroker := NewMockBroker(1)
 		mockBroker.badConsume = true
 		wg := &sync.WaitGroup{}
-		worker := taskqueue.NewWorker(1, mockBroker, nil, wg)
+		cfg := taskqueue.WorkerConfig{ID: 1, Broker: mockBroker, Backoff: nil, WG: wg}
+		worker := taskqueue.DefaultWorkerFactory(cfg)
 		worker.Register(taskName, taskHandler)
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -174,7 +179,8 @@ func TestWorkerProcesses(t *testing.T) {
 		mockBroker := NewMockBroker(1)
 		mockBroker.closeChannel = true
 		wg := &sync.WaitGroup{}
-		worker := taskqueue.NewWorker(1, mockBroker, nil, wg)
+		cfg := taskqueue.WorkerConfig{ID: 1, Broker: mockBroker, Backoff: nil, WG: wg}
+		worker := taskqueue.DefaultWorkerFactory(cfg)
 		worker.Register(taskName, taskHandler)
 
 		ctx, cancel := context.WithCancel(context.Background())
