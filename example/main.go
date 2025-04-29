@@ -33,10 +33,8 @@ func main() {
 	}
 
 	backoffPolicy := &taskqueue.BackoffPolicy{
-		BaseDelay:     2 * time.Second,
-		MaxDelay:      60 * time.Second,
-		UseJitter:     true,
-		JitterRangeMs: 500,
+		BaseDelay: 2 * time.Second,
+		MaxDelay:  60 * time.Second,
 	}
 
 	manager := taskqueue.NewManager(broker, taskqueue.DefaultWorkerFactory, 5, taskqueue.WithBackoffPolicy(backoffPolicy))
