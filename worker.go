@@ -29,6 +29,8 @@ type Worker interface {
 	Start(ctx context.Context)
 }
 
+type HandlerRegistry map[string]TaskHandlerFunc
+
 // WorkerFactory defines a function that creates a new Worker instance using the provided configuration.
 //
 // This allows users to customize how Workers are constructed, enabling injection of custom
@@ -87,7 +89,7 @@ type DefaultWorker struct {
 	id       int
 	broker   Broker
 	backoff  Backoff
-	handlers map[string]TaskHandlerFunc
+	handlers HandlerRegistry
 	wg       *sync.WaitGroup
 }
 
@@ -108,7 +110,7 @@ func DefaultWorkerFactory(cfg WorkerConfig) Worker {
 		id:       cfg.ID,
 		broker:   cfg.Broker,
 		backoff:  cfg.Backoff,
-		handlers: make(map[string]TaskHandlerFunc),
+		handlers: make(HandlerRegistry),
 		wg:       cfg.WG,
 	}
 }

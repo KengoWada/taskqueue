@@ -1,6 +1,7 @@
 package taskqueue_test
 
 import (
+	"context"
 	"errors"
 	"sync"
 
@@ -8,6 +9,34 @@ import (
 )
 
 var errSimulated = errors.New("simulated error")
+
+type MockWorker struct {
+	id      int
+	Handler taskqueue.HandlerRegistry
+	Started bool
+	wg      *sync.WaitGroup
+}
+
+func (w *MockWorker) Register(name string, handler taskqueue.TaskHandlerFunc) {
+	w.Handler[name] = handler
+}
+
+func (w *MockWorker) Start(ctx context.Context) {
+	w.Started = true
+	defer func() { w.Started = false }()
+	defer w.wg.Done()
+
+	<-ctx.Done()
+}
+
+func MockWorkerFactory(cfg taskqueue.WorkerConfig) taskqueue.Worker {
+	return &MockWorker{
+		id:      cfg.ID,
+		wg:      cfg.WG,
+		Handler: make(taskqueue.HandlerRegistry),
+		Started: false,
+	}
+}
 
 type MockBroker struct {
 	mu             sync.Mutex

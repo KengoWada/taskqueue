@@ -10,6 +10,8 @@ import (
 
 const DefaultNumOfWorkers int = 1
 
+var ErrEmptyTaskName = errors.New("task name must not be empty")
+
 // ManagerOption is a function type that modifies the configuration of a ManagerConfig.
 // It allows for functional configuration of the Manager, enabling users to customize
 // various settings, such as the backoff policy, when creating a Manager.
@@ -24,6 +26,7 @@ type ManagerConfig struct {
 // coordinating task consumption and processing, and gracefully stopping workers.
 type Manager struct {
 	broker  Broker
+	backoff Backoff
 	workers []Worker
 
 	ctx    context.Context    // The context used for managing the lifecycle of the Manager.
@@ -83,13 +86,19 @@ func NewManager(broker Broker, wf WorkerFactory, numWorkers int, opts ...Manager
 		managerConfig.BackoffPolicy = &DefaultBackoffPolicy
 	}
 
-	manager := &Manager{broker: broker, ctx: ctx, cancel: cancel}
+	manager := &Manager{
+		broker:  broker,
+		backoff: managerConfig.BackoffPolicy,
+		ctx:     ctx,
+		cancel:  cancel,
+	}
+
 	for i := range numWorkers {
 		manager.wg.Add(1)
 		workerConfig := WorkerConfig{
 			ID:      i + 1,
 			Broker:  manager.broker,
-			Backoff: managerConfig.BackoffPolicy,
+			Backoff: manager.backoff,
 			WG:      &manager.wg,
 		}
 		manager.workers = append(manager.workers, wf(workerConfig))
@@ -142,7 +151,7 @@ func (m *Manager) RegisterTask(taskName string, handler TaskHandlerFunc) {
 //	}
 func (m *Manager) PublishTask(taskName string, args TaskArgs, maxRetry int) error {
 	if taskName == "" {
-		return errors.New("task name must not be empty")
+		return ErrEmptyTaskName
 	}
 
 	task := Task{
@@ -184,4 +193,12 @@ func (m *Manager) Stop() {
 	m.cancel()
 	m.wg.Wait()
 	log.Println("All workers have shut down.")
+}
+
+func (m *Manager) Workers() []Worker {
+	return m.workers
+}
+
+func (m *Manager) BackoffPolicy() Backoff {
+	return m.backoff
 }
