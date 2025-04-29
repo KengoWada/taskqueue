@@ -17,7 +17,7 @@ type ManagerOption func(*ManagerConfig)
 
 // ManagerConfig holds configuration options for the Manager.
 type ManagerConfig struct {
-	BackoffPolicy *BackoffPolicy
+	BackoffPolicy Backoff
 }
 
 // Manager is responsible for managing the lifecycle of workers,
@@ -37,7 +37,7 @@ type Manager struct {
 // Example usage:
 //
 //	manager := NewManager(bp, numOfWorkers, WithBackoffPolicy(customBackoffPolicy))
-func WithBackoffPolicy(bp *BackoffPolicy) ManagerOption {
+func WithBackoffPolicy(bp Backoff) ManagerOption {
 	return func(cfg *ManagerConfig) {
 		cfg.BackoffPolicy = bp
 	}
@@ -79,14 +79,8 @@ func NewManager(broker Broker, wf WorkerFactory, numWorkers int, opts ...Manager
 		opt(managerConfig)
 	}
 
-	// Set default backoff if cfg.BackoffPolicy == nil
 	if managerConfig.BackoffPolicy == nil {
-		managerConfig.BackoffPolicy = &BackoffPolicy{
-			BaseDelay:     1 * time.Second,
-			MaxDelay:      30 * time.Second,
-			UseJitter:     true,
-			JitterRangeMs: 300,
-		}
+		managerConfig.BackoffPolicy = &DefaultBackoffPolicy
 	}
 
 	manager := &Manager{broker: broker, ctx: ctx, cancel: cancel}

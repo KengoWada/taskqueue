@@ -65,7 +65,7 @@ type WorkerFactory func(cfg WorkerConfig) Worker
 type WorkerConfig struct {
 	ID      int
 	Broker  Broker
-	Backoff *BackoffPolicy
+	Backoff Backoff
 	WG      *sync.WaitGroup
 }
 
@@ -86,7 +86,7 @@ type WorkerConfig struct {
 type DefaultWorker struct {
 	id       int
 	broker   Broker
-	backoff  *BackoffPolicy
+	backoff  Backoff
 	handlers map[string]TaskHandlerFunc
 	wg       *sync.WaitGroup
 }
