@@ -149,7 +149,7 @@ func (m *Manager) RegisterTask(taskName string, handler TaskHandlerFunc) {
 //	if err != nil {
 //	    log.Printf("Error publishing task: %v", err)
 //	}
-func (m *Manager) PublishTask(taskName string, args TaskArgs, maxRetry int) error {
+func (m *Manager) PublishTask(taskName string, args TaskArgs, maxRetry uint) error {
 	if taskName == "" {
 		return ErrEmptyTaskName
 	}

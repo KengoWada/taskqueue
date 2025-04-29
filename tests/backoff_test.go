@@ -12,7 +12,7 @@ func TestBackoffPolicy(t *testing.T) {
 	tests := []struct {
 		name          string
 		backoffPolicy *taskqueue.BackoffPolicy
-		retries       int
+		retries       uint
 		expectedDelay time.Duration
 		allowJitter   bool
 	}{

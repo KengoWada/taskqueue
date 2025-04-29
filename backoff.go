@@ -18,7 +18,7 @@ var DefaultBackoffPolicy = BackoffPolicy{
 type Backoff interface {
 	// Calculate returns the duration to wait before the next retry attempt.
 	// The input parameter retries indicates how many times the task has already been retried.
-	Calculate(retries int) time.Duration
+	Calculate(retries uint) time.Duration
 }
 
 // BackoffPolicy defines the configuration for handling retries with backoff logic.
@@ -32,7 +32,7 @@ type BackoffPolicy struct {
 
 // Calculate calculates the delay before the next retry based on the backoff policy.
 // It considers the retry count, base delay, maximum delay, and jitter.
-func (b *BackoffPolicy) Calculate(retries int) time.Duration {
+func (b *BackoffPolicy) Calculate(retries uint) time.Duration {
 	// Calculate the exponential backoff delay, doubling with each retry.
 	delay := min(b.BaseDelay*time.Duration(1<<uint(retries-1)), b.MaxDelay)
 

@@ -30,7 +30,7 @@ func TestWorkerProcesses(t *testing.T) {
 		return errors.New("simulated error")
 	}
 
-	maxRetries := 3
+	const maxRetries uint = 3
 
 	t.Run("should run task successfully", func(t *testing.T) {
 		mockBroker := NewMockBroker(1)
@@ -93,7 +93,7 @@ func TestWorkerProcesses(t *testing.T) {
 		cancel()
 		wg.Wait()
 
-		assert.Equal(t, maxRetries+1, failCount)
+		assert.Equal(t, maxRetries+1, uint(failCount))
 	})
 
 	t.Run("should handle failing task with no backoff", func(t *testing.T) {
@@ -122,7 +122,7 @@ func TestWorkerProcesses(t *testing.T) {
 		cancel()
 		wg.Wait()
 
-		assert.Equal(t, maxRetries+1, failCount)
+		assert.Equal(t, maxRetries+1, uint(failCount))
 	})
 
 	t.Run("should not execute task with no handler", func(t *testing.T) {
