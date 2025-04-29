@@ -180,25 +180,26 @@ func (w *DefaultWorker) Start(ctx context.Context) {
 			}
 
 			err := handler(task.Args)
-			if err != nil {
-				if task.Retry < task.MaxRetry {
-					task.Retry++
-
-					if w.backoff != nil {
-						backoffDelay := w.backoff.Calculate(task.Retry)
-						log.Printf("Task %s failed, backing off for %v (retry %d/%d)\n", task.Name, backoffDelay, task.Retry, task.MaxRetry)
-						time.Sleep(backoffDelay)
-					} else {
-						log.Printf("Task %s failed, retrying immediately (retry %d/%d)\n", task.Name, task.Retry, task.MaxRetry)
-					}
-
-					w.broker.Publish(task)
-				} else {
-					log.Printf("Worker %d: task %s exceeded retries\n", w.id, task.Name)
-				}
-			} else {
+			if err == nil {
 				log.Printf("Worker %d: task %s succeeded\n", w.id, task.Name)
+				continue
 			}
+
+			if task.Retry >= task.MaxRetry {
+				// TODO: Implement a dead letter queue to handle failed tasks.
+				log.Printf("Worker %d: task %s exceeded retries\n", w.id, task.Name)
+				continue
+			}
+
+			task.Retry++
+			if w.backoff != nil {
+				backoffDelay := w.backoff.Calculate(task.Retry)
+				log.Printf("Task %s  failed, backing off for %v (retry %d of %d)", task.Name, backoffDelay, task.Retry, task.MaxRetry)
+				time.Sleep(backoffDelay)
+			}
+
+			log.Printf("Task %s failed, retrying now (retry %d of %d)", task.Name, task.Retry, task.MaxRetry)
+			w.broker.Publish(task)
 		}
 	}
 }
