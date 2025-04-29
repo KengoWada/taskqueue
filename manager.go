@@ -24,7 +24,7 @@ type ManagerConfig struct {
 // coordinating task consumption and processing, and gracefully stopping workers.
 type Manager struct {
 	broker  Broker
-	workers []*Worker
+	workers []Worker
 
 	ctx    context.Context    // The context used for managing the lifecycle of the Manager.
 	cancel context.CancelFunc // The cancel function associated with the context, used to stop the Manager.
@@ -43,41 +43,45 @@ func WithBackoffPolicy(bp *BackoffPolicy) ManagerOption {
 	}
 }
 
-// NewManager creates and returns a new Manager instance. The Manager is responsible for
-// managing workers that process tasks from the provided Broker. It allows for a custom
-// number of workers and optional configuration such as a backoff policy for task retries.
-//
-// The function accepts a Broker, the number of workers to create, and an optional list of
-// ManagerOption functions for additional configuration. If no backoff policy is provided,
-// a default backoff policy will be applied.
+// NewManager creates a new Manager instance responsible for coordinating and supervising workers.
 //
 // Parameters:
-//   - broker: The Broker to be used for publishing and consuming tasks.
-//   - numWorkers: The number of workers to be created (defaults to 1 if less than or equal to 0).
-//   - opts: A variadic list of ManagerOption functions for additional configuration.
+//   - broker: The Broker used by all workers to fetch and process tasks.
+//   - wf: A WorkerFactory function used to create each Worker with a provided WorkerConfig.
+//   - numWorkers: The number of workers to spawn. If set to 0 or less, DefaultNumOfWorkers is used.
+//   - opts: Optional functional configuration parameters for customizing Manager behavior (e.g. backoff policy).
+//
+// The Manager sets up a cancellable context for controlling the lifecycle of its workers,
+// and assigns a shared WaitGroup to coordinate shutdowns. If no BackoffPolicy is provided in
+// the options, a DefaultBackoffPolicy is used.
+//
+// Each worker is created using the WorkerFactory and given a unique ID, shared broker,
+// backoff policy, and reference to the Manager's WaitGroup.
 //
 // Returns:
-//   - A pointer to the created Manager instance.
 //
-// Example usage:
+//	A pointer to a fully initialized Manager ready to register task handlers and start processing.
 //
-//	broker := NewRabbitMQBroker(...)
-//	manager := NewManager(broker, 3, WithBackoffPolicy(customBackoffPolicy))
-func NewManager(broker Broker, numWorkers int, opts ...ManagerOption) *Manager {
+// Example:
+//
+//	mgr := NewManager(broker, MyWorkerFactory(), 5, WithBackoff(customBackoff))
+//	mgr.RegisterTask("send_email", emailHandler)
+//	mgr.Start()
+func NewManager(broker Broker, wf WorkerFactory, numWorkers int, opts ...ManagerOption) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	if numWorkers <= 0 {
 		numWorkers = DefaultNumOfWorkers
 	}
 
-	cfg := &ManagerConfig{}
+	managerConfig := &ManagerConfig{}
 	for _, opt := range opts {
-		opt(cfg)
+		opt(managerConfig)
 	}
 
 	// Set default backoff if cfg.BackoffPolicy == nil
-	if cfg.BackoffPolicy == nil {
-		cfg.BackoffPolicy = &BackoffPolicy{
+	if managerConfig.BackoffPolicy == nil {
+		managerConfig.BackoffPolicy = &BackoffPolicy{
 			BaseDelay:     1 * time.Second,
 			MaxDelay:      30 * time.Second,
 			UseJitter:     true,
@@ -85,14 +89,19 @@ func NewManager(broker Broker, numWorkers int, opts ...ManagerOption) *Manager {
 		}
 	}
 
-	m := &Manager{broker: broker, ctx: ctx, cancel: cancel}
-	for i := 1; i <= numWorkers; i++ {
-		m.wg.Add(1)
-		worker := NewWorker(i, broker, cfg.BackoffPolicy, &m.wg)
-		m.workers = append(m.workers, worker)
+	manager := &Manager{broker: broker, ctx: ctx, cancel: cancel}
+	for i := range numWorkers {
+		manager.wg.Add(1)
+		workerConfig := WorkerConfig{
+			ID:      i + 1,
+			Broker:  manager.broker,
+			Backoff: managerConfig.BackoffPolicy,
+			WG:      &manager.wg,
+		}
+		manager.workers = append(manager.workers, wf(workerConfig))
 	}
 
-	return m
+	return manager
 }
 
 // RegisterTask registers a task handler for the specified task name across all workers managed by the Manager.
