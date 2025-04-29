@@ -23,10 +23,8 @@ func TestManager(t *testing.T) {
 		}
 
 		backoffPolicy := &taskqueue.BackoffPolicy{
-			BaseDelay:     5 * time.Millisecond, // small delay for fast test
-			MaxDelay:      20 * time.Millisecond,
-			UseJitter:     false,
-			JitterRangeMs: 0,
+			BaseDelay: 5 * time.Millisecond, // small delay for fast test
+			MaxDelay:  20 * time.Millisecond,
 		}
 
 		for _, tt := range tests {
