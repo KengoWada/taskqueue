@@ -2,6 +2,7 @@ package taskqueue
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -190,16 +191,36 @@ func (w *DefaultWorker) Start(ctx context.Context) {
 				log.Printf("Worker %d: task %s exceeded retries\n", w.id, task.Name)
 				continue
 			}
-
-			task.Retry++
-			if w.backoff != nil {
-				backoffDelay := w.backoff.Calculate(task.Retry)
-				log.Printf("Task %s  failed, backing off for %v (retry %d of %d)", task.Name, backoffDelay, task.Retry, task.MaxRetry)
-				time.Sleep(backoffDelay)
-			}
-
-			log.Printf("Task %s failed, retrying now (retry %d of %d)", task.Name, task.Retry, task.MaxRetry)
-			w.broker.Publish(task)
+			w.retryTask(ctx, task)
 		}
 	}
+}
+
+func (w *DefaultWorker) retryTask(ctx context.Context, task Task) error {
+	failedToRepublish := fmt.Sprintf("Worker %d: failed to re-queue task %s", w.id, task.Name)
+
+	task.Retry++
+	if w.backoff != nil {
+		backoffDelay := w.backoff.Calculate(task.Retry)
+		log.Printf("Task %s  failed, backing off for %v (retry %d of %d)", task.Name, backoffDelay, task.Retry, task.MaxRetry)
+
+		select {
+		case <-time.After(backoffDelay):
+
+		case <-ctx.Done():
+			log.Printf("Worker %d: context cancelled during backoff, re-queuing task %s", w.id, task.Name)
+			err := w.broker.Publish(task)
+			if err != nil {
+				log.Println(failedToRepublish)
+			}
+			return err
+		}
+	}
+
+	log.Printf("Task %s failed, retrying now (retry %d of %d)", task.Name, task.Retry, task.MaxRetry)
+	err := w.broker.Publish(task)
+	if err != nil {
+		log.Println(failedToRepublish)
+	}
+	return err
 }

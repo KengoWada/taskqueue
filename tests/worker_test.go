@@ -194,4 +194,76 @@ func TestWorkerProcesses(t *testing.T) {
 
 		assert.Contains(t, logOutput.String(), "Task channel closed, worker exiting...")
 	})
+
+	t.Run("should handle publish failure", func(t *testing.T) {
+		mockBroker := NewMockBroker(1)
+		wg := &sync.WaitGroup{}
+		cfg := taskqueue.WorkerConfig{ID: 1, Broker: mockBroker, Backoff: nil, WG: wg}
+		worker := taskqueue.DefaultWorkerFactory(cfg)
+		worker.Register(failTaskName, failTaskHandler)
+
+		task := taskqueue.Task{
+			Name:     failTaskName,
+			Args:     taskqueue.TaskArgs{},
+			MaxRetry: 3,
+		}
+		err := mockBroker.Publish(task)
+		assert.Nil(t, err)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		var logOutput bytes.Buffer
+		log.SetOutput(&logOutput)
+		defer log.SetOutput(nil)
+
+		wg.Add(1)
+		go worker.Start(ctx)
+		mockBroker.badPublish = true
+		time.Sleep(100 * time.Millisecond)
+
+		cancel()
+		wg.Wait()
+
+		expected := fmt.Sprintf("Worker %d: failed to re-queue task %s", cfg.ID, task.Name)
+		assert.Contains(t, logOutput.String(), expected)
+	})
+
+	t.Run("should handle publish failure with backoff", func(t *testing.T) {
+		backoff := &taskqueue.BackoffPolicy{
+			BaseDelay: 1 * time.Second, // small delay for fast test
+			MaxDelay:  20 * time.Second,
+		}
+		mockBroker := NewMockBroker(1)
+		wg := &sync.WaitGroup{}
+		cfg := taskqueue.WorkerConfig{ID: 1, Broker: mockBroker, Backoff: backoff, WG: wg}
+		worker := taskqueue.DefaultWorkerFactory(cfg)
+		worker.Register(failTaskName, failTaskHandler)
+
+		task := taskqueue.Task{
+			Name:     failTaskName,
+			Args:     taskqueue.TaskArgs{},
+			MaxRetry: 3,
+		}
+		err := mockBroker.Publish(task)
+		assert.Nil(t, err)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		var logOutput bytes.Buffer
+		log.SetOutput(&logOutput)
+		defer log.SetOutput(nil)
+
+		wg.Add(1)
+		go worker.Start(ctx)
+		mockBroker.badPublish = true
+		time.Sleep(100 * time.Millisecond)
+
+		cancel()
+		wg.Wait()
+
+		expected := fmt.Sprintf("Worker %d: failed to re-queue task %s", cfg.ID, task.Name)
+		assert.Contains(t, logOutput.String(), expected)
+	})
 }
